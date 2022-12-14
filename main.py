@@ -157,7 +157,7 @@ def main():
     return X,L,X_hat,clean_X,color
 
 if __name__ == '__main__':
-    return main()
+    X,L,X_hat,clean_X,color = main()
             
             
             
