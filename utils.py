@@ -2,6 +2,7 @@ import numpy as np
 from random import choices
 import math
 import random
+from torchvision.datasets import MNIST
 
 def get_swiss(N,sparse_noise_level,gaussian_noise_level=0):
     # Construct swiss roll of dim 20
@@ -29,6 +30,15 @@ def get_swiss(N,sparse_noise_level,gaussian_noise_level=0):
     X += gaussian_noise_level*np.random.randn(N,20)
     return X,clean_X,color
 
-
+def get_mnist49(N):
+    data = MNIST(root='./data',download=True,train=True)
+    indices4 = random.sample([i for i in range(len(data)) if data[i][1] == 4],N//2)
+    indices9 = random.sample([i for i in range(len(data)) if data[i][1] == 9],N//2)
+    images4 = 1/256*np.array([np.asarray(data[i][0],dtype=float).reshape(784,) for i in indices4])
+    images9 = 1/256*np.array([np.asarray(data[i][0],dtype=float).reshape(784,) for i in indices9])
+    labels = [0]*len(images4)+[1]*len(images9)
+    images = np.concatenate((images4,images9),axis=0)
+    return images,labels
+    
         
         

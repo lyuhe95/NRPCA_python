@@ -5,9 +5,12 @@ from collections import defaultdict,Counter
 import math
 import scipy as sp
 from scipy.spatial.distance import cdist
-from utils import get_swiss
+from utils import *
 import argparse
 import matplotlib.pyplot as plt
+from sklearn.utils.extmath import randomized_svd
+import ipdb
+import time
 
 class NRPCA:
     
@@ -24,11 +27,10 @@ class NRPCA:
     def run(self):
         L = defaultdict()
         L_temp = self.noisy_X
-        lambdas = [100000]*self.N
         for i in range(self.num_runs):
             print(f'Start round {i} of NRPCA ...')
             A,patch,num_copies = self.distance_matrix(L_temp)
-            L_temp = self.solver(patch,num_copies,lambdas)
+            L_temp = self.solver(patch,num_copies)
             L[i] = L_temp
         if self.gaussian:
             X_hat = self.clean_L(self.noisy_X-L_temp,patch,num_copies)
@@ -36,21 +38,22 @@ class NRPCA:
             X_hat = L_temp
         return L,X_hat
     
-    def solver(self,patch,num_copies,lambdas):
+    def solver(self,patch,num_copies):
         print('Start solving minimization problem...')
-        #S = np.random.randn(self.noisy_X.shape[0],self.noisy_X.shape[1])
+        #ipdb.set_trace()
         S = np.zeros_like(self.noisy_X)
         t = 0.005
         theta = 1
         S_old = S
+        mu = np.array([num_copies[i]/np.sqrt(max(self.K,self.P)) for i in range(self.N)]).reshape(-1,1)
         for i in range(self.niter):
             print(f'Iter {i}')
-            S_new = self.g_prox(S - t * self.f_grad(S,patch,lambdas),t,num_copies)
+            S_new = self.g_prox(S - t * self.f_grad(S,patch),t,mu)
             theta_new = 0.5 * (1 + np.sqrt(1 + 4 * theta**2))
             S = S_new + (theta - 1.)/theta_new * (S_new - S_old)
             S_old = S_new
             theta = theta_new
-            obj_val = self.f_val(S_new,patch,lambdas) + self.g_val(S_new,num_copies)
+            obj_val = self.f_val(S_new,patch) + self.g_val(S_new,mu)
             print(f'Objective value: {obj_val}')         
         L = self.noisy_X - S_new
         return L
@@ -70,43 +73,36 @@ class NRPCA:
         A = D*D1
         return A,patch,num_copies
         
-    def f_grad(self,S,patch,lambdas):
+    def f_grad(self,S,patch):
         y = np.zeros_like(self.noisy_X)
         for i in range(self.N):
             neighbors = patch[i]
             S_i = self.C@S[neighbors]
             X_i = self.C@self.noisy_X[neighbors]
-            [U,Sigma_i,Vh] = np.linalg.svd(X_i-S_i)
-            #Sigma_i = [max(x-1/(2*lambdas[i]),0) for x in Sigma_i]
+            [U,Sigma_i,Vh] = np.linalg.svd(X_i-S_i,full_matrices=False)
             Sigma_i = [1]*len(Sigma_i)
-            L_i = np.dot(U,np.dot(sp.linalg.diagsvd(Sigma_i,*X_i.shape),Vh))
-            #temp = 2 * lambdas[i] * (L_i + S_i - X_i)
+            L_i = U@np.diag(Sigma_i)@Vh
             temp = -self.C@L_i 
             y[neighbors] += temp
         return y
     
-    def f_val(self,S,patch,lambdas):
+    def f_val(self,S,patch):
         y = 0
         for i in range(self.N):
             neighbors = patch[i]
             S_i = self.C@S[neighbors]
             X_i = self.C@self.noisy_X[neighbors]
-            [U,Sigma_i,Vh] = np.linalg.svd(X_i-S_i)
+            Sigma_i = np.linalg.svd(X_i-S_i,full_matrices=False,compute_uv=False)
             tmp = sum(Sigma_i)
-            #Sigma_i = [max(x-1/(2*lambdas[i]),0) for x in Sigma_i]
-            #L_i = np.dot(U,np.dot(sp.linalg.diagsvd(Sigma_i,*X_i.shape),Vh))
-            #y += lambdas[i] * np.linalg.norm(X_i-L_i-S_i,'fro') + tmp
             y += tmp
         return y
     
-    def g_prox(self,S,t,num_copies):
-        mu = np.array([num_copies[i]/np.sqrt(max(self.K,self.P)) for i in range(self.N)]).reshape(-1,1)
+    def g_prox(self,S,t,mu):
         y = np.maximum(0,S-t*mu*np.ones((1,self.P))) - np.maximum(0,-S-t*mu*np.ones((1,self.P)))
         return y
     
-    def g_val(self,S,num_copies):
+    def g_val(self,S,mu):
         y = 0
-        mu = [num_copies[i]/np.sqrt(max(self.K,self.P)) for i in range(self.N)]
         for i in range(self.N):
             y += mu[i] * sum(abs(S[i]))
         return y
@@ -148,11 +144,12 @@ def main():
     num_runs,niter = args.num_runs,args.niter
     if args.data.startswith('Swiss'):
         X,clean_X,color = get_swiss(N,sparse_noise_level=sparse_noise_level,gaussian_noise_level=gaussian_noise_level)
+        gaussian = gaussian_noise_level > 0
     elif args.data.startswith('MNIST'):
-        X = get_mnist(N)
-        clean_X,color = None,None
+        X,_ = get_mnist49(N)
+        clean_X,color,gaussian = None,None,False
     
-    method = NRPCA(X,K,num_runs,niter,gaussian=gaussian_noise_level>0)
+    method = NRPCA(X,K,num_runs,niter,gaussian=gaussian)
     L,X_hat = method.run()
     return X,L,X_hat,clean_X,color
 
