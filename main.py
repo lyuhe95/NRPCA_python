@@ -9,7 +9,6 @@ from utils import *
 import argparse
 import matplotlib.pyplot as plt
 from sklearn.utils.extmath import randomized_svd
-import ipdb
 import time
 
 class NRPCA:
