@@ -9,9 +9,9 @@ Compared with the original algorithm in the paper and the MATLAB implementation,
 
 ### Descriptions
 
-**main.py**: Implements the algprithm NRPCA
+**main.py**: Implements the algorithm NRPCA
 
 **Example_MNIST.ipynb**: Code for MNIST digits 4&9 classification using NRPCA
 
-**Example_SwissRoll.ipynb**: Code for 20 dimenssional SwissRoll dataset using NRPCA
+**Example_SwissRoll.ipynb**: Code for 20-dimenssional SwissRoll dataset using NRPCA
 
